@@ -1,0 +1,32 @@
+{
+  "name": "hr-tech-backend-mvp",
+  "version": "1.0.0",
+  "description": "A streamlined, two-sided web platform designed to eliminate administrative chaos for small business owners and provide complete transparency for employees.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon server.js",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Just-Anonymously-Known/hr-tech-backend-mvp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/Just-Anonymously-Known/hr-tech-backend-mvp/issues"
+  },
+  "homepage": "https://github.com/Just-Anonymously-Known/hr-tech-backend-mvp#readme",
+  "dependencies": {
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "mongoose": "^9.10.3",
+    "pdfkit": "^0.20.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
