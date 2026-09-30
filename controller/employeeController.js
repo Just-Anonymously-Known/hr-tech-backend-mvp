@@ -3,7 +3,7 @@ const Employee = require('../models/employee');
 // 1. Create Employee
 exports.createEmployee = async (req, res) => {
   try {
-    const { fullName, email, phone, employeeId, jobTitle, department, startDate, employmentType, user } = req.body;
+    const { fullName, email, phone, employeeId, jobTitle, department, company, startDate, employmentType, user } = req.body;
     
     const existingEmployee = await Employee.findOne({ $or: [{ email }, { employeeId }] });
     if (existingEmployee) {
@@ -17,6 +17,7 @@ exports.createEmployee = async (req, res) => {
       employeeId,
       jobTitle,
       department,
+      company,
       startDate,
       employmentType,
       user: user || null,

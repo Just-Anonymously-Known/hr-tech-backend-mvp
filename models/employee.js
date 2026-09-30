@@ -7,6 +7,7 @@ const employeeSchema = new mongoose.Schema({
   employeeId: { type: String, required: true, unique: true },
   jobTitle: { type: String, required: true },
   department: { type: String, required: true },
+  company: { type: String, required: true },
   startDate: { type: Date, required: true },
   employmentType: { type: String, enum: ['Full-Time', 'Part-Time', 'Contract'], required: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
