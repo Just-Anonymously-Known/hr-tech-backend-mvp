@@ -20,15 +20,20 @@ app.use(cors());
 const authRoutes = require('./routes/authRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 
+const deductionRoutes = require( './routes/deductionRoutes.js')
+const salaryRoutes = require ('./routes/salaryRoutes.js')
+
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 
+app.use('/deductions',deductionRoutes)
+app.use('/salaries',salaryRoutes)
+
 
 /*
-const salaryRoutes = require('./routes/salaryRoutes');
 const payrollRoutes = require('./routes/payrollRoutes');
 
-app.use('/api/salaries', salaryRoutes);
+
 app.use('/api/payroll', payrollRoutes);
 */
 
