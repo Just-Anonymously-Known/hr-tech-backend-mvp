@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const { verifyToken } = require("../middleware/auth");
-const { searchEmployees } = require("../controllers/searchController");
+const { searchEmployees } = require("../controller/searchController");
 
 router.get("/employees", verifyToken, searchEmployees);
 
