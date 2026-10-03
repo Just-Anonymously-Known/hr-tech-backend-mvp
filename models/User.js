@@ -4,8 +4,8 @@ const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: true,
       trim: true,
+      required: true,
     },
     email: {
       type: String,
@@ -22,6 +22,9 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["Admin", "Employee"],
       default: "Employee",
+    },
+    companyId: {
+      type: String,
     },
   },
   { timestamps: true },
