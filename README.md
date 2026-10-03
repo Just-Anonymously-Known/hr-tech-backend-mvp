@@ -68,7 +68,7 @@ Node.js, Express.js, MongoDB & Mongoose, JWT, bcrypt
 - `GET /api/auth/me` (requires token)
 - `GET /api/auth/admin-only` (requires token + Admin role)
 - `GET /api/notifications` (requires token)
-- `GET /api/search/employees?name=` (requires token)
+- `GET /api/search/employees?q=` (requires token)
 
 ## Using the middleware in your routes
 
