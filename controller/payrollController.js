@@ -1,19 +1,30 @@
-import mongoose from 'mongoose';
-import Payroll from '../models/Payroll.js';
-import Employee from '../models/Employee.js';
-import Salary from '../models/Salary.js';
+const mongoose = require('mongoose');
+const Deduction = require('../models/deduction.js');
+const Payroll = require('../models/Payroll.js');
+const Employee = require('../models/employee.js');
+const Salary = require('../models/salary.js');
 
 const PERIOD = /^20[0-9]{2}-(0[1-9]|1[0-2])$/;
+
 const companyOf = (req) => {
-    if (!req.user?.companyId) {
+    const id = req.user?.companyId;
+    if (!id) {
         const error = new Error('Your account has no company linked');
         error.status = 403; throw error;
     }
-    return String(req.user.companyId);
+    return String(id);
 };
 
-const userOf = (req) => String(req.user._id || req.user.id);
-const kobo = (n) => Math.round(Number(n) * 100); // naira -> kobo
+const userOf = (req) => {
+    const id = req.user.userId || req.user._id || req.user.id;
+
+    if (!id) {
+        const error = new Error('Your login token has no user ID');
+        error.status = 401; throw error;
+    }
+    return String(id);
+};
+const kobo = (n) => Math.round(Number(n) * 100);
 const naira = (k) => k / 100;
 const day = (d) => d.toISOString().slice(0, 10);
 const hasError = (e) => e.issues.some((i) => i.level === 'error');
@@ -21,7 +32,11 @@ const hasError = (e) => e.issues.some((i) => i.level === 'error');
 const send = (res, code, message, data) =>
     res.status(code).json({ success: code < 400, message, ...(data && { data }) });
 const wrap = (fn) => (req, res) =>
-    fn(req, res).catch((err) => { console.error(err); send(res, 500, 'Server error'); });
+    fn(req, res).catch((err) => {
+        if (err.status) return send(res, err.status, err.message);
+        console.error(err);
+        send(res, 500, 'Server error');
+    });
 
 const findPayroll = (req, id) =>
     mongoose.isValidObjectId(id) ? Payroll.findOne({ _id: id, companyId: companyOf(req) }) : null;
@@ -43,32 +58,34 @@ function priceLine(gross, list = []) {
     return { deductions, totalDeductionsKobo: total, netPayKobo: Math.max(gross - total, 0), issues };
 }
 
-function buildLine(emp, salary) {
+const PER_YEAR = { annually: 1, monthly: 12, 'bi-weekly': 26, weekly: 52 };
+
+function monthlyDeduction(d, periodStart) {
+    if (d.frequency === 'one-time') {
+        return d.effectiveFrom < periodStart ? null : { name: d.name, amount: d.amount };
+    }
+    const perYear = PER_YEAR[d.frequency];
+    return { name: d.name, amount: perYear ? (d.amount * perYear) / 12 : NaN };
+}
+
+function buildLine(emp, salary, deductions = []) {
     const base = {
         employee: emp._id,
         employeeId: emp.employeeId || String(emp._id),
         employeeName: emp.fullName || emp.name || 'Unknown',
+        salaryUsedKobo: salary ? kobo(salary.amount) || 0 : 0,
+        salaryFrequency: salary?.frequency,
     };
-    const gross = kobo(salary && salary.amount);
+    const perYear = salary && PER_YEAR[salary.frequency];
+    const gross = perYear ? Math.round((kobo(salary.amount) * perYear) / 12) : 0;
+
     if (!(gross > 0)) {
-        const issues = [{ level: 'error', message: 'No valid salary configured' }];
-        return { ...base, grossPayKobo: 0, deductions: [], totalDeductionsKobo: 0, netPayKobo: 0, issues };
-    }
-    if (!Array.isArray(salary.deductions)) {
         return {
-            ...base,
-            grossPayKobo: gross,
-            deductions: [],
-            totalDeductionsKobo: 0,
-            netPayKobo: 0,
-            issues: [
-                {
-                    level: 'error',
-                    message: 'Deduction information has not been configured',
-                },
-            ],
+            ...base, grossPayKobo: 0, deductions: [], totalDeductionsKobo: 0, netPayKobo: 0,
+            issues: [{ level: 'error', message: 'No valid salary configured' }],
         };
     }
+    return { ...base, grossPayKobo: gross, ...priceLine(gross, deductions) };
 }
 
 const totalsOf = (lines) => ({
@@ -78,7 +95,7 @@ const totalsOf = (lines) => ({
     totalNetPayKobo: lines.reduce((s, l) => s + l.netPayKobo, 0),
 });
 
-export const calculatePayroll = wrap(async (req, res) => {
+const calculatePayroll = wrap(async (req, res) => {
     const { payPeriod } = req.body;
     if (!PERIOD.test(payPeriod)) return send(res, 400, 'payPeriod must look like "2026-09"');
 
@@ -88,15 +105,20 @@ export const calculatePayroll = wrap(async (req, res) => {
         return send(res, 409, 'This period is already finalized and cannot be recalculated');
     }
 
-    const employees = await Employee.find({ company: companyId, status: { $nin: ['inactive', 'terminated'] } });
+    if (payroll?.employees.some((e) => e.corrected) && req.body.force !== true) {
+        return send(res, 409, 'This draft has manual corrections. Send { "force": true } to recalculate and discard them');
+    }
+
+    const employees = await Employee.find({ company: companyId, status: 'Active' });
     if (!employees.length) return send(res, 400, 'No active employees found');
-    const periodStart = new Date(`${payPeriod}-01T00:00:00.000Z`);
+    const [y, m] = payPeriod.split('-').map(Number);
+    const periodEnd = new Date(Date.UTC(y, m, 1));
 
     const salaries = await Salary.find({
         company: companyId,
         employee: { $in: employees.map((employee) => employee._id) },
         isActive: true,
-        effectiveFrom: { $lte: periodStart },
+        effectiveFrom: { $lt: periodEnd },
     }).sort({
         effectiveFrom: -1,
         _id: -1,
@@ -112,10 +134,27 @@ export const calculatePayroll = wrap(async (req, res) => {
         }
     }
 
-    const lines = employees.map((e) => buildLine(e, salaryOf.get(String(e._id))));
+    const periodStart = new Date(Date.UTC(y, m - 1, 1));
+    const deductionDocs = await Deduction.find({
+        company: companyId,
+        employee: { $in: employees.map((e) => e._id) },
+        isActive: true,
+        effectiveFrom: { $lt: periodEnd },
+    });
+
+    const deductionsOf = new Map();
+    for (const d of deductionDocs) {
+        const item = monthlyDeduction(d, periodStart);
+        if (!item) continue;
+        const key = String(d.employee);
+        if (!deductionsOf.has(key)) deductionsOf.set(key, []);
+        deductionsOf.get(key).push(item);
+    }
+
+    const lines = employees.map((e) => buildLine(e, salaryOf.get(String(e._id)), deductionsOf.get(String(e._id)) || []));
     const data = { employees: lines, totals: totalsOf(lines), calculatedAt: new Date() };
 
-    if (payroll) { // recalculating a draft: same document, review is reset
+    if (payroll) {
         payroll.set({ ...data, reviewedBy: undefined, reviewedAt: undefined });
         payroll.revision += 1;
     } else {
@@ -125,14 +164,14 @@ export const calculatePayroll = wrap(async (req, res) => {
     send(res, 201, 'Payroll calculated. Review it before finalizing.', payroll);
 });
 
-export const getPayroll = wrap(async (req, res) => {
+const getPayroll = wrap(async (req, res) => {
     const payroll = await findPayroll(req, req.params.id);
     if (!payroll) return send(res, 404, 'Payroll not found');
     const canFinalize = payroll.status === 'draft' && !payroll.employees.some(hasError);
     send(res, 200, 'OK', { payroll, canFinalize });
 });
 
-export const updateEntry = wrap(async (req, res) => {
+const updateEntry = wrap(async (req, res) => {
     const payroll = await findPayroll(req, req.params.id);
     if (!payroll) return send(res, 404, 'Payroll not found');
     if (payroll.status !== 'draft') return send(res, 409, 'Finalized payroll cannot be edited');
@@ -143,13 +182,14 @@ export const updateEntry = wrap(async (req, res) => {
     if (!line.grossPayKobo) return send(res, 400, "Fix this employee's salary, then recalculate");
 
     line.set(priceLine(line.grossPayKobo, req.body.deductions));
+    line.corrected = true;
     payroll.set({ totals: totalsOf(payroll.employees), reviewedBy: undefined, reviewedAt: undefined });
     payroll.revision += 1;
     await payroll.save();
     send(res, 200, 'Updated. Please review again.', line);
 });
 
-export const finalizePayroll = wrap(async (req, res) => {
+const finalizePayroll = wrap(async (req, res) => {
     if (req.body.confirm !== true) return send(res, 400, 'Send { "confirm": true } to finalize');
     const payroll = await findPayroll(req, req.params.id);
     if (!payroll) return send(res, 404, 'Payroll not found');
@@ -171,7 +211,7 @@ export const finalizePayroll = wrap(async (req, res) => {
     send(res, 200, 'Payroll finalized. Payslips are now available.', payroll);
 });
 
-export const recordPayment = wrap(async (req, res) => {
+const recordPayment = wrap(async (req, res) => {
     const { status, paymentDate, employeeIds } = req.body;
     if (!['scheduled', 'paid'].includes(status)) return send(res, 400, 'status must be "scheduled" or "paid"');
     if (status === 'scheduled' && !paymentDate) return send(res, 400, 'paymentDate is required to schedule');
@@ -204,7 +244,7 @@ export const recordPayment = wrap(async (req, res) => {
     send(res, 200, 'Payment status updated');
 });
 
-export const getPayrollHistory = wrap(async (req, res) => {
+const getPayrollHistory = wrap(async (req, res) => {
     const filter = { companyId: companyOf(req) };
     if (['draft', 'finalized'].includes(req.query.status)) filter.status = req.query.status;
     if (/^20[0-9]{2}$/.test(req.query.year)) filter.payPeriod = new RegExp(`^${req.query.year}-`);
@@ -224,7 +264,7 @@ const payslipOf = (payroll, e) => ({
     finalizedAt: payroll.finalizedAt,
 });
 
-export const getPayslips = wrap(async (req, res) => {
+const getPayslips = wrap(async (req, res) => {
     const payroll = await findPayroll(req, req.params.id);
     if (!payroll) return send(res, 404, 'Payroll not found');
     if (payroll.status !== 'finalized') return send(res, 400, 'Payslips only exist for finalized payroll');
@@ -235,7 +275,7 @@ export const getPayslips = wrap(async (req, res) => {
     send(res, 200, 'OK', lines.map((e) => payslipOf(payroll, e)));
 });
 
-export const getMyPayslips = wrap(async (req, res) => {
+const getMyPayslips = wrap(async (req, res) => {
     const me = await Employee.findOne(req.user.employee ? { _id: req.user.employee } : { user: userOf(req) });
     if (!me) return send(res, 404, 'No employee record linked to your account');
 
@@ -253,3 +293,5 @@ export const getMyPayslips = wrap(async (req, res) => {
     if (req.params.payrollId) return slips.length ? send(res, 200, 'OK', slips[0]) : send(res, 404, 'Payslip not found');
     send(res, 200, 'OK', slips);
 });
+
+module.exports = { calculatePayroll, getPayroll, updateEntry, finalizePayroll, recordPayment, getPayrollHistory, getPayslips, getMyPayslips };

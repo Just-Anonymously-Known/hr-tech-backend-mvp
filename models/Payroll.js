@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const moneyField = {
   type: Number,
@@ -13,8 +13,6 @@ const moneyField = {
 const deductionSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    type: { type: String, enum: ['fixed', 'percentage'], default: 'fixed' },
-    rate: Number,
     amountKobo: moneyField,
   },
   { _id: false }
@@ -44,8 +42,6 @@ const employeePayrollSchema = new mongoose.Schema(
 
     employeeId: { type: String, required: true },
     employeeName: { type: String, required: true },
-    jobTitle: String,
-    department: String,
 
     salaryUsedKobo: { type: Number, min: 0 },
     salaryFrequency: String,
@@ -57,7 +53,6 @@ const employeePayrollSchema = new mongoose.Schema(
 
     issues: [issueSchema],
     corrected: { type: Boolean, default: false },
-    correctionNote: String,
 
     paymentStatus: {
       type: String,
@@ -92,8 +87,6 @@ const payrollSchema = new mongoose.Schema(
       totalGrossPayKobo: moneyField,
       totalDeductionsKobo: moneyField,
       totalNetPayKobo: moneyField,
-      employeesWithErrors: { type: Number, default: 0 },
-      employeesWithWarnings: { type: Number, default: 0 },
     },
 
     revision: { type: Number, default: 1 },
@@ -118,4 +111,4 @@ payrollSchema.index({ companyId: 1, payPeriod: 1 }, { unique: true });
 payrollSchema.index({ companyId: 1, status: 1, 'employees.employee': 1 });
 
 const Payroll = mongoose.model('Payroll', payrollSchema);
-export default Payroll;
+module.exports = Payroll;
