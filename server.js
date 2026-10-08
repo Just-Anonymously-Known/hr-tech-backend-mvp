@@ -21,8 +21,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/employees", employeeRoutes);
+app.use("/api/payroll", require("./routes/payrollRoutes"));   // new
 
-app.get("/", (req, res) => {
+app.get("/", (req, res) => {                                  // main's
   res.send("HR Backend is running...");
 });
 
