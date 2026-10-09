@@ -1,14 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  createEmployee, 
-  getEmployees, 
-  updateEmployeeStatus 
-} = require('../controller/employeeController');
+const { addEmployee, updateEmployee } = require('../controller/authController');
+const { verifyToken, isAdmin } = require('../middleware/auth');
 
-// Define routes for Epic 1 (Employee Management)
-router.post('/', createEmployee);
-router.get('/', getEmployees);
-router.patch('/:id/status', updateEmployeeStatus);
+// Epic 1: Admin & HR Employee Management Routes
+router.post('/add-employee', verifyToken, isAdmin, addEmployee);
+router.put('/:id', verifyToken, isAdmin, updateEmployee);
 
 module.exports = router;

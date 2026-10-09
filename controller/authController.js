@@ -1,30 +1,14 @@
-const User = require('../models/User');
+const User = require('../models/user');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // 1. Register User
+// Public registration is disabled because employees are created exclusively by admins from the web dashboard.
 exports.register = async (req, res) => {
-  try {
-    const { email, password, role } = req.body;
-
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ success: false, error: 'User already exists.' });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const user = await User.create({
-      email,
-      password: hashedPassword,
-      role: role || 'Employee'
-    });
-
-    res.status(201).json({ success: true, message: 'User registered successfully', data: { email: user.email, role: user.role } });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
+  return res.status(403).json({ 
+    success: false, 
+    error: 'Public registration is disabled. Please contact your company administrator to create an account.' 
+  });
 };
 
 // 2. Login User
@@ -53,6 +37,107 @@ exports.login = async (req, res) => {
     );
 
     res.status(200).json({ success: true, token, role: user.role, companyId: user.companyId });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.addEmployee = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Not authorized, no token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
+
+    if (decoded.role !== 'Admin' && decoded.role !== 'HR') {
+      return res.status(403).json({ success: false, error: 'Access denied. Only admins or HR can add employees.' });
+    }
+
+    const { 
+      name, 
+      email, 
+      password, 
+      role, 
+      phone, 
+      dateOfBirth, 
+      gender, 
+      address,
+      employeeId,
+      department,
+      jobTitle,
+      employmentType,
+      startDate
+    } = req.body;
+    
+    const companyId = decoded.companyId;
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(400).json({ success: false, error: 'User already exists' });
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: role || 'Employee',
+      companyId,
+      phone: phone || '',
+      dateOfBirth: dateOfBirth || null,
+      gender: gender || '',
+      address: address || '',
+      employeeId: employeeId || '',
+      department: department || '',
+      jobTitle: jobTitle || '',
+      employmentType: employmentType || 'Full-Time',
+      startDate: startDate || Date.now()
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Employee added successfully',
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        companyId: user.companyId,
+        phone: user.phone,
+        address: user.address,
+        gender: user.gender,
+        employeeId: user.employeeId,
+        department: user.department,
+        jobTitle: user.jobTitle,
+        employmentType: user.employmentType,
+        startDate: user.startDate
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.updateEmployee = async (req, res) => {
+  try {
+    const updatedEmployee = await User.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedEmployee) {
+      return res.status(404).json({ success: false, error: 'Employee not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Employee updated successfully',
+      data: updatedEmployee
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
