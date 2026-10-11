@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const deductionSchema = new mongoose.Schema({
-employee:{type:mongoose.Schema.Types.ObjectId,ref:'Employee',required:true,unique:true},
+employee:{type:mongoose.Schema.Types.ObjectId,ref:'Employee',required:true},
 company:{type:String, required:true},
 name:{type:String,required:true},
 amount: {type:Number,required:true},
