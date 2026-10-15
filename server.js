@@ -9,6 +9,11 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
 
+
+const deductionRoutes = require( './routes/deductionRoutes.js')
+const salaryRoutes = require ('./routes/salaryRoutes.js')
+
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -22,6 +27,9 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/payroll", require("./routes/payrollRoutes"));   // new
+
+app.use('/deductions',deductionRoutes)
+app.use('/salaries',salaryRoutes)
 
 app.get("/", (req, res) => {                                  // main's
   res.send("HR Backend is running...");

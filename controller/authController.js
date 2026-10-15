@@ -3,10 +3,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // 1. Register User
-// Public registration is disabled because employees are created exclusively by admins from the web dashboard.
 exports.register = async (req, res) => {
   try {
-    const { email, password, role } = req.body;
+    const {name, email, password, role,companyId } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -17,8 +16,10 @@ exports.register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const user = await User.create({
+      name,
       email,
       password: hashedPassword,
+      companyId,
       role: role || 'Employee'
     });
 
@@ -35,35 +36,21 @@ exports.login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Invalid email or password" });
+      return res.status(400).json({ success: false, error: 'Invalid email or password' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Invalid email or password" });
+      return res.status(400).json({ success: false, error: 'Invalid email or password' });
     }
 
     const token = jwt.sign(
-{
-        userId: user._id,
-        role: user.role,
-        companyId: user.companyId,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" },
+      { userId: user._id, role: user.role, companyId: user.companyId }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '1d' }
     );
 
-    res.status(200).json({
-      success: true,
-      token,
-      name: user.name,
-      role: user.role,
-      companyId: user.companyId,
-    });
+    res.status(200).json({ success: true, token, role: user.role });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
