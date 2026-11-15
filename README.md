@@ -127,5 +127,5 @@ middleware/ - auth & role checks
 
 - **Runtime:** Node.js
 - **Framework:** Express.js
-- **Database:** MongoDB & Mongoose
-- **Authentication:** JSON Web Tokens (JWT) & bcryptjs
+- **Database:** Mongoose and MongoDB
+- **Authentication:** bcryptjs and JSON Web Tokens (JWT)
